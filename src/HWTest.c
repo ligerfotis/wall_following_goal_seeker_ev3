@@ -1,10 +1,11 @@
+
 #include <ev3.h>
 #include <time.h>
 
+// Hyperparameters
 #define K_P 2
 #define SPEED 5
 #define MAX_ERROR 6
-//#define DISTANCE_FROM_OBJECT 20
 #define DISTANCE_FROM_OBJECT 31
 #define WAIT_TIME 500
 #define BLUE_COLOR 2
@@ -19,6 +20,7 @@
 #define MOVE_RIGHT 1
 #define MOVE_FORWARD 2
 #define TURN_OFFSET 0.5
+#define PUSH_ITERATIONS 300
 
 int front_color = IN_1;
 int left_color = IN_2;
@@ -26,7 +28,11 @@ int left_color = IN_2;
 bool isExitButtonPressed() {
     return ButtonIsDown(BTNEXIT);
 }
+
 void move_forward(int init_angle){
+	/*
+	 * PD controlled forward movement using the error from the gyroscope
+	 */
 	int angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate) ;
 	int error = angle -init_angle;
 	int speed_l = K_P * error + SPEED;
@@ -35,6 +41,10 @@ void move_forward(int init_angle){
 	OnFwdReg(OUT_A, speed_r);
 }
 void move_left(int init_angle){
+	/*
+	 * PD controlled left movement using the error from the gyroscope.
+	 * The turn is being performed smoothly by moving the PD controller's target.
+	 */
 	ResetEV3GyroSensor(IN_3, EV3GyroSoftwareOffset);
 	int angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate) ;
 	float error = ((float)angle - TURN_OFFSET) -(float)init_angle;
@@ -44,6 +54,10 @@ void move_left(int init_angle){
 	OnFwdReg(OUT_A, speed_r);
 }
 void move_right(int init_angle){
+	/*
+	 * PD controlled right movement using the error from the gyroscope.
+	 * The turn is being performed smoothly by moving the PD controller's target.
+	 */
 	ResetEV3GyroSensor(IN_3, EV3GyroSoftwareOffset);
 	int angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate) ;
 	float error = ((float)angle + TURN_OFFSET) -(float)init_angle;
@@ -53,19 +67,24 @@ void move_right(int init_angle){
 	OnFwdReg(OUT_A, speed_r);
 }
 void reach_object(int distance){
-//	int distance = ReadEV3UltrasonicSensorDistance(IN_4, EV3_ULTRASONIC_CM);
+	/*
+	 * Reaches the object found within a REACH_DISTANCE threshold
+	 */
 	int init_angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate);
 	while (distance > REACH_DISTANCE){
 			move_forward(init_angle);
 			distance = ReadEV3UltrasonicSensorDistance(IN_4, EV3_ULTRASONIC_CM);
 	}
 }
-int rotate_anticlockwise() {
+
+int rotate_counterclockwise() {
+	/*
+	 * Rotates the robot on the spot counterclockwise
+	 */
 	ResetEV3GyroSensor(IN_3, EV3GyroSoftwareOffset);
 	int init_angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate);
+	int distance;
 	PlaySound(SOUND_CLICK);
-//	TermPrintln("HERE!");
-//	ButtonWaitForPress(BUTTON_IDX_UP);
 	int counter = 0;
 	while (1){
 		int angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate) ;
@@ -75,13 +94,13 @@ int rotate_anticlockwise() {
 			PlaySound(SOUND_CLICK);
 			break;
 		}
-		int distance = ReadEV3UltrasonicSensorDistance(IN_4, EV3_ULTRASONIC_CM);
+		distance = ReadEV3UltrasonicSensorDistance(IN_4, EV3_ULTRASONIC_CM);
 		if (distance <= DISTANCE_FROM_OBJECT){
 			if (counter > COUNTER_SINCE_GOAL){
 				Off(OUT_AC);
 				PlaySound(SOUND_FAST_UP);
 				counter = 0;
-				return distance;
+				break;
 			}
 			PlaySound(SOUND_CLICK);
 			counter++;
@@ -93,6 +112,7 @@ int rotate_anticlockwise() {
 
 	}
 	Off(OUT_AC);
+	return distance;
 
 }
 
@@ -197,6 +217,10 @@ void wall_following() {
 
 }
 int pick_random_move(){
+	/*
+	 * returns a random move to perform during wander phase
+	 * There is a biased option to favor turning left and forward
+	 */
 	int lower = 1, upper = 10;
 	int random_pick = (rand() % (upper - lower + 1)) + lower;
 	if (BIASED_PICK){
@@ -233,13 +257,13 @@ void wander(){
 //    	TermPrintln("MOVE_RIGHT");
 }
 void find_goal(){
-	int distance = rotate_anticlockwise();
+	int distance = rotate_counterclockwise();
 	reach_object(distance);
 	clock_t t;
 	int init_angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate);
 	t = clock();
 	int i;
-	for (i=0; i< 300; i++){
+	for (i=0; i< PUSH_ITERATIONS; i++){
 		move_forward(init_angle);
 	}
 
@@ -296,6 +320,10 @@ find_goal();
 //        LcdTextf(1, 0, LcdRowToY(3), "Angle: %d", angle);
 //        Wait(WAIT_TIME);
 //    }
+
+
+//	TermPrintln("HERE!");
+//	ButtonWaitForPress(BUTTON_IDX_UP);
 
     FreeEV3();
     return 0;
