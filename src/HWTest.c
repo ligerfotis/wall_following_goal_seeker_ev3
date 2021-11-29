@@ -232,7 +232,18 @@ void wander(){
 		move_right(init_angle);
 //    	TermPrintln("MOVE_RIGHT");
 }
+void find_goal(){
+	int distance = rotate_anticlockwise();
+	reach_object(distance);
+	clock_t t;
+	int init_angle = ReadEV3GyroSensorAngle(IN_3, EV3GyroInterleavedRate);
+	t = clock();
+	int i;
+	for (i=0; i< 300; i++){
+		move_forward(init_angle);
+	}
 
+}
 int main () {
     /**
      * Initialize EV3Color sensor connected at port 1
@@ -264,8 +275,7 @@ int main () {
 /*
  * Uncomment bellow to check wander function
  * */
-    int distance = rotate_anticlockwise();
-    reach_object(distance);
+find_goal();
 
 /*
  * Uncomment bellow to check sensors
